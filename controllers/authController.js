@@ -1,4 +1,5 @@
 const User = require("../models/User");
+const Account = require("../models/Account"); // Import Account Model
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
@@ -21,33 +22,39 @@ const registerUser = async (req, res) => {
             name,
             email,
             password: hashedPassword,
-            role: role || "customer", // Default role is "customer"
+            role: role || "customer", // Default role: "customer"
         });
 
         await user.save();
+
+        // ✅ Create an account for the new user
+        const account = new Account({
+            user: user._id,
+            balance: 500, // Default balance is 0
+            transactions: [],
+        });
+
+        await account.save(); // Save account in DB
 
         // Generate JWT Token
         const token = jwt.sign(
             { userId: user._id, email: user.email, role: user.role },
             process.env.JWT_SECRET,
-            { expiresIn: "1h" }
+            { expiresIn: "24h" }
         );
 
         res.status(201).json({ 
             message: "User registered successfully", 
-            token,  // Include token in response
-            user: { 
-                _id: user._id,
-                name: user.name,
-                email: user.email,
-                role: user.role 
-            } 
+            token,  
+            user: { _id: user._id, name: user.name, email: user.email, role: user.role },
+            account: { _id: account._id, balance: account.balance } // ✅ Return account details
         });
+
     } catch (error) {
-        res.status(500).json({ message: "Server error", error });
+        console.error("Error in registerUser:", error); // Log error
+        res.status(500).json({ message: "Server error", error: error.message });
     }
 };
-
 
 const login = async (req, res) => {
     try {
@@ -59,6 +66,9 @@ const login = async (req, res) => {
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) return res.status(400).json({ message: "Invalid credentials" });
 
+        // 🔹 Fetch user's account
+        const account = await Account.findOne({ userId: user._id });
+
         const token = jwt.sign(
             { userId: user._id, role: user.role },
             process.env.JWT_SECRET,
@@ -69,11 +79,11 @@ const login = async (req, res) => {
             message: "Login successful",
             token,
             user: { _id: user._id, name: user.name, email: user.email, role: user.role },
+            accountId: account ? account._id : null  // Return account ID if exists
         });
     } catch (error) {
         res.status(500).json({ message: "Server Error", error });
     }
 };
-
 
 module.exports = { registerUser, login };
