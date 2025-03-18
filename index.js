@@ -11,10 +11,7 @@ const app = express();
 
 // Middleware
 app.use(
-  cors({
-    credentials: true,
-    origin: process.env.FRONTEND_URL || "http://localhost:3000", // Use Render frontend URL in production
-  })
+  cors()
 );
 app.use(express.json()); // Parse JSON requests
 
